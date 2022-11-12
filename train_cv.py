@@ -3,7 +3,7 @@ import os, os.path, sys
 import pickle
 import argparse
 import pandas as pd
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7,8,9,10,11,12,13,14'
 
 import torch
 import torchmetrics
@@ -16,7 +16,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from torch.optim import Adam
 from torch.utils.data import DataLoader, ConcatDataset
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
@@ -46,7 +46,6 @@ if __name__ == '__main__':
     parser.add_argument('--add_feat', type=str, default='False')
     parser.add_argument('--add_resp', type=str, default='False')
     parser.add_argument('--rewrite_data', type=str, default='False')
-    parser.add_argument('--del_rep_unk', type=str, default='False')
 
     args = parser.parse_args()
     
@@ -65,7 +64,6 @@ if __name__ == '__main__':
     add_features = eval(args.add_feat)
     add_response_token = eval(args.add_resp)
     rewrite_data = eval(args.rewrite_data)
-    del_rep_unk = eval(args.del_rep_unk)
     print(add_features)
 
     if set_seeds:
@@ -109,6 +107,7 @@ if __name__ == '__main__':
             csv_data.to_csv('add_features_train.tsv', sep='\t', index=False)
     else:
         csv_data = pd.read_csv('add_features_train.tsv', sep='\t')
+        csv_data.drop_duplicates(['context', 'phrase'], inplace=True)
         csv_data['context'] = csv_data['context'].apply(lambda x: eval(x))
         feature_cols = csv_data.columns[3:]
 
@@ -116,100 +115,113 @@ if __name__ == '__main__':
         csv_data['prep_context'] = csv_data['context'].apply(lambda x: preprocess_context(x, 'bert'))
         if add_response_token:
             add_token = '[RESPONSE_TOKEN]'
-            csv_data['prep_phrase_context'] = csv_data['prep_context'] + add_token + '— ' + csv_data['phrase'] + ' [SEP]'
+            csv_data['prep_phrase_context'] = csv_data['prep_context'] + add_token + '– ' + csv_data['phrase'] + ' [SEP]'
         else:
-            csv_data['prep_phrase_context'] = csv_data['prep_context'] + '— ' + csv_data['phrase'] + ' [SEP]'
+            csv_data['prep_phrase_context'] = csv_data['prep_context'] + '– ' + csv_data['phrase'] + ' [SEP]'
     elif model_type == 'roberta':
         csv_data['prep_context'] = csv_data['context'].apply(lambda x: preprocess_context(x, 'roberta'))
-        csv_data['prep_phrase_context'] = csv_data['prep_context'] + '— ' + csv_data['phrase'] + '</s>'
+        csv_data['prep_phrase_context'] = csv_data['prep_context'] + '– ' + csv_data['phrase'] + '</s>'
     elif model_type == 't5':
         csv_data['prep_context'] = csv_data['context'].apply(lambda x: preprocess_context(x, 't5'))
-        csv_data['prep_phrase_context'] = csv_data['prep_context'] + ' <extra_id_0> ' + '— ' + csv_data['phrase'] + ' <extra_id_0>'
+        csv_data['prep_phrase_context'] = csv_data['prep_context'] + ' <extra_id_0> ' + '– ' + csv_data['phrase'] + ' <extra_id_0>'
 
     if not add_features:
         csv_data = csv_data[['prep_phrase_context', 'label']]
     else:
-        csv_data = csv_data[['prep_phrase_context', 'label'] + list(feature_cols)]
+        csv_data = csv_data[['prep_phrase_context'] + list(feature_cols) + ['label']]
     print(csv_data)
 
-    train_data, val_data = train_test_split(csv_data, test_size=0.3, random_state=42, shuffle=True, stratify=csv_data['label'])
-    test_data, val_data = train_test_split(val_data, test_size=0.66, random_state=42, shuffle=True, stratify=val_data['label'])
+    folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    train_data, test_data = train_test_split(csv_data, test_size=0.3, random_state=42, shuffle=True, stratify=csv_data['label'])
+    x = train_data.iloc[:, :-1]
+    y = train_data.iloc[:, -1]
+
+    x_test = test_data.iloc[:, :-1].values
+    y_test = test_data.iloc[:, -1].values
+
+    splits = folds.split(x, y)
+
+    for n_fold, (train_index, val_index) in enumerate(splits):
+        x_train, x_val = x.values[train_index], x.values[val_index]
+        y_train, y_val = y.values[train_index], y.values[val_index]
     
-    if add_features:
-        train_data, train_labels, train_features = train_data.values[:, 0], train_data.values[:, 1], train_data.values[:, 2:]
-        val_data, val_labels, val_features = val_data.values[:, 0], val_data.values[:, 1], val_data.values[:, 2:]
-        test_data, test_labels, test_features = test_data.values[:, 0], test_data.values[:, 1], test_data.values[:, 2:]
+        if add_features:
+            train_data, train_labels, train_features = x_train[:, 0], y_train, x_train[:, 1:]
+            val_data, val_labels, val_features = x_val[:, 0], y_val, x_val[:, 1:]
+            test_data, test_labels, test_features = x_test[:, 0], y_test, x_test[:, 1:]
 
-        scaler = StandardScaler()
-        scaled_train_features = scaler.fit_transform(train_features)
-        scaled_test_features = scaler.transform(test_features)
-        scaled_val_features = scaler.transform(val_features)
+            scaler = StandardScaler()
+            scaled_train_features = scaler.fit_transform(train_features)
+            scaled_test_features = scaler.transform(test_features)
+            scaled_val_features = scaler.transform(val_features)
 
-        with open('scaler.pickle', 'wb') as handle:
-            pickle.dump(scaler, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(f'scaler_{n_fold}.pickle', 'wb') as handle:
+                pickle.dump(scaler, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    else:
-        train_data, train_labels = train_data.values[:, 0], train_data.values[:, 1]
-        val_data, val_labels = val_data.values[:, 0], val_data.values[:, 1]
-        test_data, test_labels = test_data.values[:, 0], test_data.values[:, 1]
+        else:
+            train_data, train_labels = x_train[:, 0], y_train
+            val_data, val_labels = x_val[:, 0], y_val
+            test_data, test_labels = x_test[:, 0], y_test
 
-    if model_type == 'bert': 
-        hugg_name = 'sberbank-ai/ruBert-large'
-    elif model_type == 't5':
-        hugg_name = 'sberbank-ai/ruT5-large'
-    elif model_type == 'roberta':
-        hugg_name = 'DeepPavlov/xlm-roberta-large-en-ru'
+        if model_type == 'bert': 
+            hugg_name = 'sberbank-ai/ruBert-large'
+        elif model_type == 't5':
+            hugg_name = 'sberbank-ai/ruT5-large'
+        elif model_type == 'roberta':
+            # hugg_name = 'DeepPavlov/xlm-roberta-large-en-ru'
+            hugg_name = 'xlm-roberta-large'
 
-    tokenizer = AutoTokenizer.from_pretrained(hugg_name)
-    if add_response_token:
-        special_tokens_dict = {'additional_special_tokens': add_token}
-        tokenizer.add_special_tokens(special_tokens_dict)
+        tokenizer = AutoTokenizer.from_pretrained(hugg_name)
+        if add_response_token:
+            special_tokens_dict = {'additional_special_tokens': add_token}
+            tokenizer.add_special_tokens(special_tokens_dict)
 
-    config = {'MAX_LEN': 511, 'tokenizer': tokenizer, 'model': model_type}
+        config = {'MAX_LEN': 256, 'tokenizer': tokenizer, 'model': model_type}
 
-    train_dataset = Dataset(train_data, 
-                            train_labels, 
+        train_dataset = Dataset(train_data, 
+                                train_labels, 
+                                config=config,
+                                features=scaled_train_features if add_features else None
+                                )
+        val_dataset = Dataset(val_data, 
+                            val_labels, 
                             config=config,
-                            features=scaled_train_features if add_features else None
+                            features=scaled_val_features if add_features else None
                             )
-    val_dataset = Dataset(val_data, 
-                          val_labels, 
-                          config=config,
-                          features=scaled_val_features if add_features else None
-                          )
-    test_dataset = Dataset(test_data, 
-                           test_labels,
-                           config=config,
-                           features=scaled_test_features if add_features else None
-                           )
-    train_dataloader = DataLoader(train_dataset, 
-                                  batch_size=batch_size, 
-                                  shuffle=True, 
-                                  num_workers=16)
+        test_dataset = Dataset(test_data, 
+                            test_labels,
+                            config=config,
+                            features=scaled_test_features if add_features else None
+                            )
+        train_dataloader = DataLoader(train_dataset, 
+                                    batch_size=batch_size, 
+                                    shuffle=True, 
+                                    num_workers=4)
 
-    with open('dataloader.pickle', 'wb') as handle:
-        pickle.dump(train_dataloader, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open('dataloader.pickle', 'wb') as handle:
+        # pickle.dump(train_dataloader, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    val_dataloader = DataLoader(val_dataset, 
-                                batch_size=batch_size, 
-                                shuffle=False, 
-                                num_workers=16)
-    test_dataloader = DataLoader(test_dataset, 
-                                 batch_size=batch_size, 
-                                 shuffle=False, 
-                                 num_workers=16)
-    early_stop_callback = EarlyStopping(monitor=track, 
-                                        min_delta=0.001, 
-                                        patience=2 if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 4, 
-                                        mode='max' if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 'min')
+        val_dataloader = DataLoader(val_dataset, 
+                                    batch_size=batch_size, 
+                                    shuffle=False, 
+                                    num_workers=4)
+        test_dataloader = DataLoader(test_dataset, 
+                                    batch_size=batch_size, 
+                                    shuffle=False, 
+                                    num_workers=4)
+        early_stop_callback = EarlyStopping(monitor=track, 
+                                            min_delta=0.001, 
+                                            patience=2 if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 4, 
+                                            mode='max' if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 'min')
 
-    wandb_logger = WandbLogger(project="marusya", name=name, log_model='all')
-    checkpoint_callback = ModelCheckpoint(monitor=track, 
-                                          mode='max' if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 'min', 
-                                          dirpath=f'checkpoints/{name}', 
-                                          save_weights_only=True)
+        wandb_logger = WandbLogger(project="marusya-folds", name=name + f'_fold{n_fold}', log_model='all')
+        checkpoint_callback = ModelCheckpoint(monitor=track, 
+                                            mode='max' if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 'min', 
+                                            dirpath=f'checkpoints/{name}', 
+                                            save_weights_only=True)
 
-    trainer = Trainer(max_epochs=epochs, 
+        trainer = Trainer(max_epochs=epochs, 
                       logger=wandb_logger, 
                       val_check_interval=1.0, 
                       accelerator='gpu', 
@@ -220,19 +232,19 @@ if __name__ == '__main__':
                       gradient_clip_algorithm="value",
                       accumulate_grad_batches=accumulate_grad_batches)
     
-    model = create_model(model_type, loss_type, len(list(feature_cols)))
+        model = create_model(model_type, loss_type, len(list(feature_cols)))
 
-    if add_response_token:
-        model.resize_token_embeddings(len(tokenizer))
+        if add_response_token:
+            model.resize_token_embeddings(len(tokenizer))
 
-    if optimizer_type == 'adafactor':
-        config_optim = {'lr': 1e-3, 'relative_step': False, 'scale_parameter': False}
-    else:
-        config_optim = None
+        if optimizer_type == 'adafactor':
+            config_optim = {'lr': 1e-3, 'relative_step': False, 'scale_parameter': False}
+        else:
+            config_optim = None
 
-    if scheduler_usage not in ['cosine', 'linear']:
-        wrap_model = ModelWrapper(model, optimizer_type, scheduler_usage, track, loss_type, config_optim)
-    else:
-        wrap_model = ModelWrapper(model, optimizer_type, scheduler_usage, track, loss_type, config_optim, num_train_steps=len(train_dataloader), epochs=epochs)
-    trainer.fit(wrap_model, train_dataloader, val_dataloader)
-    trainer.test(wrap_model, test_dataloader, ckpt_path='best')
+        if scheduler_usage not in ['cosine', 'linear']:
+            wrap_model = ModelWrapper(model, optimizer_type, scheduler_usage, track, loss_type, config_optim)
+        else:
+            wrap_model = ModelWrapper(model, optimizer_type, scheduler_usage, track, loss_type, config_optim, num_train_steps=len(train_dataloader), epochs=epochs)
+        trainer.fit(wrap_model, train_dataloader, val_dataloader)
+        trainer.test(wrap_model, test_dataloader, ckpt_path='best')
