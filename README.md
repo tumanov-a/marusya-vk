@@ -1,5 +1,7 @@
 ## Решение команды GrowAi на хакатоне Цифровой прорыв: Маруся не отвечает на реплики из телевизора
 
+Извиняемся за грязность репозитория, но в таком формате обучение может быть запущено.
+
 Для запуска обучения выполните `python3 train.py --model roberta --name roberta_test --epochs 5 --batch 8 --optimizer adam --scheduler cosine --device 4`
 
 Для запуска обучения на фолдах выполните `python3 train_cv.py --model roberta --name roberta_test --epochs 5 --batch 8 --optimizer adam --scheduler cosine --device 4`
@@ -29,3 +31,7 @@ rewrite_data - переписать данные
 
 В test_data_predict.ipynb - находится предикшен тестовой выборки.
 
+model_wrapper.py, model_factory.py, clfs.py - это цикл обучения, создание модели, код классификаторов.
+
+Загрузить модели и распаковать, чтобы сделать тестовый предикшен, можно по ссылке: 
+https://drive.google.com/file/d/1dA-jnQFDNSY3Oi4tUSFBCHGQl0soKlX2/view?usp=share_link
