@@ -4,10 +4,11 @@ import pickle
 import argparse
 import pandas as pd
 import subprocess
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
 
 import torch
 import torchmetrics
+import itertools
 import pytorch_lightning as pl
 
 from transformers import AutoTokenizer
@@ -130,15 +131,48 @@ if __name__ == '__main__':
         csv_data['prep_context'] = csv_data['context'].apply(lambda x: preprocess_context(x, 't5'))
         csv_data['prep_phrase_context'] = csv_data['prep_context'] + ' <extra_id_0> ' + '— ' + csv_data['phrase'] + ' <extra_id_0>'
 
-    if not add_features:
-        csv_data = csv_data[['prep_phrase_context', 'label']]
-    else:
-        csv_data = csv_data[['prep_phrase_context', 'label'] + list(feature_cols)]
-    print(csv_data)
 
     train_data, val_data = train_test_split(csv_data, test_size=0.3, random_state=42, shuffle=True, stratify=csv_data['label'])
     test_data, val_data = train_test_split(val_data, test_size=0.66, random_state=42, shuffle=True, stratify=val_data['label'])
-    
+    bad_train_data = train_data[(train_data['label'] == 1) & (train_data['relevance'] < 0.3) & (~train_data['phrase'].str.contains('марус|помощн'))] 
+    bad_train_data = bad_train_data[(~bad_train_data['prep_context'].isin(val_data['prep_context'].unique())) & (~bad_train_data['prep_context'].isin(test_data['prep_context'].unique()))]
+
+    bad_contexts = bad_train_data['context']
+    bad_phrases = bad_train_data['phrase']
+
+    random_pairs = list(itertools.product(bad_contexts, bad_phrases))
+    random_10k_idx = np.random.randint(len(random_pairs), size=8000)
+    random_pairs_10k = np.array(random_pairs)[random_10k_idx]
+
+    sampled_data = pd.read_csv('sampled_data.tsv', sep='\t')
+    if model_type == 'bert':
+        sampled_data['prep_context'] = sampled_data['context'].apply(lambda x: preprocess_context(eval(x), 'bert'))
+        if add_response_token:
+            add_token = '[RESPONSE_TOKEN]'
+            sampled_data['prep_phrase_context'] = sampled_data['prep_context'] + add_token + '— ' + sampled_data['phrase'] + ' [SEP]'
+        else:
+            sampled_data['prep_phrase_context'] = sampled_data['prep_context'] + '— ' + sampled_data['phrase'] + ' [SEP]'
+    elif model_type == 'roberta':
+        sampled_data['prep_context'] = sampled_data['context'].apply(lambda x: preprocess_context(eval(x), 'roberta'))
+        if add_response_token:
+            add_token = '[RESPONSE_TOKEN]'
+            sampled_data['prep_phrase_context'] = sampled_data['prep_context'] + add_token + '– ' + sampled_data['phrase'] + '</s>'
+        else:
+            sampled_data['prep_phrase_context'] = sampled_data['prep_context'] + '– ' + sampled_data['phrase'] + '</s>'
+
+    if not add_features:
+        train_data = train_data[['prep_phrase_context', 'label']]
+        val_data = val_data[['prep_phrase_context', 'label']]
+        test_data = test_data[['prep_phrase_context', 'label']]
+        sampled_data = sampled_data[['prep_phrase_context', 'label']]
+        train_data = pd.concat([train_data, sampled_data], axis=0)
+    else:
+        train_data = train_data[['prep_phrase_context', 'label'] + list(feature_cols)]
+        test_data = test_data[['prep_phrase_context', 'label'] + list(feature_cols)]
+        val_data = val_data[['prep_phrase_context', 'label'] + list(feature_cols)]
+        sampled_data = sampled_data[['prep_phrase_context', 'label'] + list(feature_cols)]
+        train_data = pd.concat([train_data, sampled_data], axis=0)
+
     if add_features:
         train_data, train_labels, train_features = train_data.values[:, 0], train_data.values[:, 1], train_data.values[:, 2:]
         val_data, val_labels, val_features = val_data.values[:, 0], val_data.values[:, 1], val_data.values[:, 2:]
@@ -149,7 +183,7 @@ if __name__ == '__main__':
         scaled_test_features = scaler.transform(test_features)
         scaled_val_features = scaler.transform(val_features)
 
-        with open('scaler.pickle', 'wb') as handle:
+        with open(f'scaler_sampled.pickle', 'wb') as handle:
             pickle.dump(scaler, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     else:
@@ -189,7 +223,7 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_dataset, 
                                   batch_size=batch_size, 
                                   shuffle=True, 
-                                  num_workers=2)
+                                  num_workers=16)
 
     with open('dataloader.pickle', 'wb') as handle:
         pickle.dump(train_dataloader, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -197,11 +231,11 @@ if __name__ == '__main__':
     val_dataloader = DataLoader(val_dataset, 
                                 batch_size=batch_size, 
                                 shuffle=False, 
-                                num_workers=2)
+                                num_workers=16)
     test_dataloader = DataLoader(test_dataset, 
                                  batch_size=batch_size, 
                                  shuffle=False, 
-                                 num_workers=2)
+                                 num_workers=16)
     early_stop_callback = EarlyStopping(monitor=track, 
                                         min_delta=0.001, 
                                         # patience=2 if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 4,

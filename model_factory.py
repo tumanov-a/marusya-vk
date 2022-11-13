@@ -11,8 +11,12 @@ model_params = {
                     },
             'roberta': {
                     'hidden_neurons': 512,
-                    'hugg_name': 'xlm-roberta-large'
-            }
+                    'hugg_name': 'DeepPavlov/xlm-roberta-large-en-ru'
+                    },
+            'roberta-ru': {
+                    'hidden_neurons': 512,
+                    'hugg_name': 'DeepPavlov/xlm-roberta-large-en-ru'
+                    }
             }
 
 def create_model(model_name, loss_type, n_features):
@@ -24,6 +28,8 @@ def create_model(model_name, loss_type, n_features):
     if model_name == 'bert':
         model = BertClassifier(model_name=model_params[model_name]['hugg_name'], hidden_neurons=model_params[model_name]['hidden_neurons'], feature_size=n_features, n_labels=n_labels, loss_type=loss_type)
     elif model_name == 'roberta':
+        model = BertClassifier(model_name=model_params[model_name]['hugg_name'], hidden_neurons=model_params[model_name]['hidden_neurons'], feature_size=n_features, n_labels=n_labels, loss_type=loss_type)
+    elif model_name == 'roberta-ru':
         model = BertClassifier(model_name=model_params[model_name]['hugg_name'], hidden_neurons=model_params[model_name]['hidden_neurons'], feature_size=n_features, n_labels=n_labels, loss_type=loss_type)
     elif model_name == 't5':
         model = T5Classifier(model_name=model_params[model_name]['hugg_name'], hidden_neurons=model_params[model_name]['hidden_neurons'], n_labels=n_labels, loss_type=loss_type)

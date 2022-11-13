@@ -3,6 +3,11 @@ import torch
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+from pymystem3 import Mystem
+from collections import Counter
+from razdel import sentenize
+from tqdm import tqdm
+
 
 acceptability_tokenizer = AutoTokenizer.from_pretrained('RussianNLP/ruRoBERTa-large-rucola')
 acceptability_model = AutoModelForSequenceClassification.from_pretrained('RussianNLP/ruRoBERTa-large-rucola')
@@ -14,7 +19,7 @@ toxicity_model = AutoModelForSequenceClassification.from_pretrained(toxicity_mod
 resp_qual_tokenizer = AutoTokenizer.from_pretrained('tinkoff-ai/response-quality-classifier-large')
 resp_qual_model = AutoModelForSequenceClassification.from_pretrained('tinkoff-ai/response-quality-classifier-large')
 
-device = torch.device('cuda:0')
+# device = torch.device('cuda:7')
 
 # if torch.cuda.is_available():
 #     toxicity_model.to(device)
@@ -115,6 +120,19 @@ def toxicity_of_context(context):
     mean_toxicity = np.mean(toxicities) if toxicities else 0
     return mean_toxicity
 
+def count_ner_in_context(context):
+    count_ner = []
+    for x in context:
+        user_repl = x['user']
+        marusia_repl = x['marusia']
+        if user_repl:
+            repl_toxicity = text2toxicity(user_repl, True)
+            toxicities.append(repl_toxicity)
+        else:
+            continue
+    mean_toxicity = np.mean(toxicities) if toxicities else 0
+    return mean_toxicity
+
 def predict_acceptability(text):
     inputs = acceptability_tokenizer(text, max_length=128, add_special_tokens=False, return_tensors='pt').to(acceptability_model.device)
     with torch.inference_mode():
@@ -138,11 +156,13 @@ def return_str_for_resp_qual(df):
 
     return'[CLS]' + "[SEP]".join(ret) + '[RESPONSE_TOKEN]' + df['phrase']
 
-del acceptability_tokenizer
-del acceptability_model
 
-del toxicity_tokenizer
-del toxicity_model
 
-del resp_qual_tokenizer 
-del resp_qual_model
+# del acceptability_tokenizer
+# del acceptability_model
+
+# del toxicity_tokenizer
+# del toxicity_model
+
+# del resp_qual_tokenizer 
+# del resp_qual_model

@@ -3,7 +3,7 @@ import os, os.path, sys
 import pickle
 import argparse
 import pandas as pd
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7,8,9,10,11,12,13,14'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,2,3,4,5,6,7'
 
 import torch
 import torchmetrics
@@ -120,7 +120,11 @@ if __name__ == '__main__':
             csv_data['prep_phrase_context'] = csv_data['prep_context'] + '– ' + csv_data['phrase'] + ' [SEP]'
     elif model_type == 'roberta':
         csv_data['prep_context'] = csv_data['context'].apply(lambda x: preprocess_context(x, 'roberta'))
-        csv_data['prep_phrase_context'] = csv_data['prep_context'] + '– ' + csv_data['phrase'] + '</s>'
+        if add_response_token:
+            add_token = '[RESPONSE_TOKEN]'
+            csv_data['prep_phrase_context'] = csv_data['prep_context'] + add_token + '– ' + csv_data['phrase'] + '</s>'
+        else:
+            csv_data['prep_phrase_context'] = csv_data['prep_context'] + '– ' + csv_data['phrase'] + '</s>'
     elif model_type == 't5':
         csv_data['prep_context'] = csv_data['context'].apply(lambda x: preprocess_context(x, 't5'))
         csv_data['prep_phrase_context'] = csv_data['prep_context'] + ' <extra_id_0> ' + '– ' + csv_data['phrase'] + ' <extra_id_0>'
@@ -131,9 +135,9 @@ if __name__ == '__main__':
         csv_data = csv_data[['prep_phrase_context'] + list(feature_cols) + ['label']]
     print(csv_data)
 
-    folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    folds = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
 
-    train_data, test_data = train_test_split(csv_data, test_size=0.3, random_state=42, shuffle=True, stratify=csv_data['label'])
+    train_data, test_data = train_test_split(csv_data, test_size=0.15, random_state=42, shuffle=True, stratify=csv_data['label'])
     x = train_data.iloc[:, :-1]
     y = train_data.iloc[:, -1]
 
@@ -169,12 +173,12 @@ if __name__ == '__main__':
         elif model_type == 't5':
             hugg_name = 'sberbank-ai/ruT5-large'
         elif model_type == 'roberta':
-            # hugg_name = 'DeepPavlov/xlm-roberta-large-en-ru'
-            hugg_name = 'xlm-roberta-large'
+            hugg_name = 'DeepPavlov/xlm-roberta-large-en-ru'
+            # hugg_name = 'xlm-roberta-large'
 
         tokenizer = AutoTokenizer.from_pretrained(hugg_name)
         if add_response_token:
-            special_tokens_dict = {'additional_special_tokens': add_token}
+            special_tokens_dict = {'additional_special_tokens': [add_token]}
             tokenizer.add_special_tokens(special_tokens_dict)
 
         config = {'MAX_LEN': 256, 'tokenizer': tokenizer, 'model': model_type}
@@ -212,11 +216,13 @@ if __name__ == '__main__':
                                     num_workers=4)
         early_stop_callback = EarlyStopping(monitor=track, 
                                             min_delta=0.001, 
-                                            patience=2 if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 4, 
+                                            # patience=2 if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 4, 
+                                            patience=2,
                                             mode='max' if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 'min')
 
         wandb_logger = WandbLogger(project="marusya-folds", name=name + f'_fold{n_fold}', log_model='all')
         checkpoint_callback = ModelCheckpoint(monitor=track, 
+                                            filename=f"best-checkpoint-fold{n_fold}-val_metric{track:.3f}",
                                             mode='max' if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 'min', 
                                             dirpath=f'checkpoints/{name}', 
                                             save_weights_only=True)
@@ -235,7 +241,7 @@ if __name__ == '__main__':
         model = create_model(model_type, loss_type, len(list(feature_cols)))
 
         if add_response_token:
-            model.resize_token_embeddings(len(tokenizer))
+            model.model.resize_token_embeddings(len(tokenizer))
 
         if optimizer_type == 'adafactor':
             config_optim = {'lr': 1e-3, 'relative_step': False, 'scale_parameter': False}
@@ -248,3 +254,6 @@ if __name__ == '__main__':
             wrap_model = ModelWrapper(model, optimizer_type, scheduler_usage, track, loss_type, config_optim, num_train_steps=len(train_dataloader), epochs=epochs)
         trainer.fit(wrap_model, train_dataloader, val_dataloader)
         trainer.test(wrap_model, test_dataloader, ckpt_path='best')
+
+        with open(f'trainers/trainer_{name}_nfold{n_fold}.pickle', 'wb') as handle:
+            pickle.dump(trainer, handle, protocol=pickle.HIGHEST_PROTOCOL)

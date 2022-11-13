@@ -37,7 +37,7 @@ class BertClassifier(torch.nn.Module):
         feature_1 = torch.sum(weights * last_hidden_states, dim=1)
         feature_2 = torch.sum(weights_features * relu_features, dim=1)
         feature = torch.cat([feature_1, feature_2.unsqueeze(1)], axis=1)
-        # scores = self.dropout(self.classifier(feature))
+        scores = self.dropout(self.classifier(feature))
         scores = self.classifier(feature)
         if self.n_labels == 1:
             scores = self.activation(scores)
