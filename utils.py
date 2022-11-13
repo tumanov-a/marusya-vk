@@ -1,3 +1,7 @@
+# import os
+# os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+
+
 import re
 import torch
 import numpy as np
@@ -7,6 +11,7 @@ from pymystem3 import Mystem
 from collections import Counter
 from razdel import sentenize
 from tqdm import tqdm
+
 
 
 acceptability_tokenizer = AutoTokenizer.from_pretrained('RussianNLP/ruRoBERTa-large-rucola')
@@ -19,7 +24,7 @@ toxicity_model = AutoModelForSequenceClassification.from_pretrained(toxicity_mod
 resp_qual_tokenizer = AutoTokenizer.from_pretrained('tinkoff-ai/response-quality-classifier-large')
 resp_qual_model = AutoModelForSequenceClassification.from_pretrained('tinkoff-ai/response-quality-classifier-large')
 
-# device = torch.device('cuda:7')
+# device = torch.device('cuda:15')
 
 # if torch.cuda.is_available():
 #     toxicity_model.to(device)
@@ -158,11 +163,11 @@ def return_str_for_resp_qual(df):
 
 
 
-# del acceptability_tokenizer
-# del acceptability_model
+del acceptability_tokenizer
+del acceptability_model
 
-# del toxicity_tokenizer
-# del toxicity_model
+del toxicity_tokenizer
+del toxicity_model
 
-# del resp_qual_tokenizer 
-# del resp_qual_model
+del resp_qual_tokenizer 
+del resp_qual_model
