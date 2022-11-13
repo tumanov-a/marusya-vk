@@ -1,28 +1,31 @@
-[![Typing SVG](https://readme-typing-svg.herokuapp.com?color=%2336BCF7&lines=Маруся+не+отвечает+на+реплики)](https://git.io/typing-svg)
-[![Typing SVG](https://readme-typing-svg.herokuapp.com?color=%2336BCF7&lines=из+телевизора)](https://git.io/typing-svg)
+## Решение команды GrowAi на хакатоне Цифровой прорыв: Маруся не отвечает на реплики из телевизора
 
-<h1 align="center"><i>Решение команды GrowAi на хакатоне Цифровой прорыв: Маруся не отвечает на реплики из телевизора</i></h1>
+Для запуска обучения выполните `python3 train.py --model roberta --name roberta_test --epochs 5 --batch 8 --optimizer adam --scheduler cosine --device 4`
 
-<p>
-    <img src="https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white">
-    <img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54">
-    <img src="https://img.shields.io/badge/pandas-%23150458.svg?style=for-the-badge&logo=pandas&logoColor=white">
-    <img src="https://img.shields.io/badge/numpy-%23013243.svg?style=for-the-badge&logo=numpy&logoColor=white">
-    <img src="https://img.shields.io/badge/Matplotlib-%23ffffff.svg?style=for-the-badge&logo=Matplotlib&logoColor=black">
-    <img src="https://img.shields.io/badge/SciPy-%230C55A5.svg?style=for-the-badge&logo=scipy&logoColor=%white">
-    <img src="https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=for-the-badge&logo=scikit-learn&logoColor=white">
-</p>
+Для запуска обучения на фолдах выполните `python3 train_cv.py --model roberta --name roberta_test --epochs 5 --batch 8 --optimizer adam --scheduler cosine --device 4`
 
-<h2>Краткое описание решения</h2>
-<p align="center"><img src="https://grow-ai-marusya-vk-digital.hf.space/media/d5c5f03764cfe8f85490c4edca900b35975b1bd5f4971f4e117e81ce.jpeg" width="1008" height="675"></p>
+Для запуска обучения с семплированием выполните `python3 train_sampled.py --model roberta --name roberta_test --epochs 5 --batch 8 --optimizer adam --scheduler cosine --device 4`
 
-<p> Мы представляем алгоритм машинного обучения для решения задачи бинарной классификации, отличающий команды пользователя голосового помощника VK "Маруся" от внешнего   шума для повышения коммуникации.</p>
+У данных файлов существуют следующие флаги:
 
-<p>Проанализировав входные данные нами было проведена комплексная оценка параметров признаков, в процессе подготовки было очищено порядка 1,5 тысяч диалогов, содержащих    смайлики и пустые значения для лучшего распознавания команд алгоритмом, проставлена пунктуация в ключевых фразах и диалогах пользователей, дана оценка 
-токсичности пользовательских ответов, качества данного ответа, а также лингвистическая приемлемость.</p>
+model - архитектура модели (bert, t5, roberta)
+name - название модели
+device - количество девайсов GPU
+epochs - количество эпох
+batch - размер батча
+optimizer - оптимизатор (adam, adafactor, sgd)
+scheduler - шедулер (adafactor, cosine, linear)
+seeds - фиксировать сид
+track - отслеживать лосс или метрику
+accum - аккумуляция батча
+loss_type - тип лосса (ce, bce, softmarginloss)
+add_feat - добавить дополнительные вещественные фичи
+add_resp - добавить токен
+rewrite_data - переписать данные
 
-<p><b><i>Стек решения:</i></b> python, torch, transformers, sklearn, scipy, pandas, numpy, streamlit</p>
+В папку checkpoints грузятся чекпоины.
 
-<p><b><i>Уникальность:</i></b> Решение оформлено в виде web приложения с пользовательским интерфейсом, позволяющим загружать релевантные данные для их обработки разработанным алгоритмом. Интерпретируемость модели определяется извлечением отдельных признаков, имеющих наибольшую взаимосвязь и значимость для классификации. Повышение точности основано на подходе разделения дата сета на 5 частей для обучения отдельных моделей вместо 1.</p>
+В папке notebooks - рабочие ноутбуки со всеми функциями.
 
-<p align="center"><b><i>Интерфейс пользователя можно посмотреть </i></b><a href="https://huggingface.co/spaces/Grow-Ai/Marusya_VK_digital">здесь</a></p>
+В test_data_predict.ipynb - находится предикшен тестовой выборки.
+

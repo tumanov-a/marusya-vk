@@ -4,7 +4,7 @@ import pickle
 import argparse
 import pandas as pd
 import subprocess
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,2,3,4'
 
 import torch
 import torchmetrics
@@ -203,7 +203,7 @@ if __name__ == '__main__':
         special_tokens_dict = {'additional_special_tokens': [add_token]}
         tokenizer.add_special_tokens(special_tokens_dict)
 
-    config = {'MAX_LEN': 256, 'tokenizer': tokenizer, 'model': model_type}
+    config = {'MAX_LEN': 511, 'tokenizer': tokenizer, 'model': model_type}
 
     train_dataset = Dataset(train_data, 
                             train_labels, 
@@ -223,7 +223,7 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_dataset, 
                                   batch_size=batch_size, 
                                   shuffle=True, 
-                                  num_workers=16)
+                                  num_workers=2)
 
     with open('dataloader.pickle', 'wb') as handle:
         pickle.dump(train_dataloader, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -231,11 +231,11 @@ if __name__ == '__main__':
     val_dataloader = DataLoader(val_dataset, 
                                 batch_size=batch_size, 
                                 shuffle=False, 
-                                num_workers=16)
+                                num_workers=2)
     test_dataloader = DataLoader(test_dataset, 
                                  batch_size=batch_size, 
                                  shuffle=False, 
-                                 num_workers=16)
+                                 num_workers=2)
     early_stop_callback = EarlyStopping(monitor=track, 
                                         min_delta=0.001, 
                                         # patience=2 if track in ['valid_rocauc_epoch', 'valid_f1_epoch'] else 4,

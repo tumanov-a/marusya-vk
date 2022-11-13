@@ -111,7 +111,10 @@ if __name__ == '__main__':
         csv_data.drop_duplicates(['context', 'phrase'], inplace=True)
         csv_data['context'] = csv_data['context'].apply(lambda x: eval(x))
         feature_cols = csv_data.columns[3:]
-
+        
+    with open('feature_cols.txt', 'w') as f:
+        f.write(' '.join(list(feature_cols)))
+        
     if model_type == 'bert':
         csv_data['prep_context'] = csv_data['context'].apply(lambda x: preprocess_context(x, 'bert'))
         if add_response_token:
@@ -169,7 +172,7 @@ if __name__ == '__main__':
         special_tokens_dict = {'additional_special_tokens': [add_token]}
         tokenizer.add_special_tokens(special_tokens_dict)
 
-    config = {'MAX_LEN': 256, 'tokenizer': tokenizer, 'model': model_type}
+    config = {'MAX_LEN': 511, 'tokenizer': tokenizer, 'model': model_type}
 
     train_dataset = Dataset(train_data, 
                             train_labels, 
