@@ -10,20 +10,20 @@
 
 У данных файлов существуют следующие флаги:
 
-model - архитектура модели (bert, t5, roberta)
-name - название модели
-device - количество девайсов GPU
-epochs - количество эпох
-batch - размер батча
-optimizer - оптимизатор (adam, adafactor, sgd)
-scheduler - шедулер (adafactor, cosine, linear)
-seeds - фиксировать сид
-track - отслеживать лосс или метрику
-accum - аккумуляция батча
-loss_type - тип лосса (ce, bce, softmarginloss)
-add_feat - добавить дополнительные вещественные фичи
-add_resp - добавить токен
-rewrite_data - переписать данные
+model - архитектура модели (bert, t5, roberta)<br />
+name - название модели<br />
+device - количество девайсов GPU<br />
+epochs - количество эпох<br />
+batch - размер батча<br />
+optimizer - оптимизатор (adam, adafactor, sgd)<br />
+scheduler - шедулер (adafactor, cosine, linear)<br />
+seeds - фиксировать сид<br />
+track - отслеживать лосс или метрику<br />
+accum - аккумуляция батча<br />
+loss_type - тип лосса (ce, bce, softmarginloss)<br />
+add_feat - добавить дополнительные вещественные фичи<br />
+add_resp - добавить токен<br />
+rewrite_data - переписать данные<br />
 
 В папку checkpoints грузятся чекпоины.
 
